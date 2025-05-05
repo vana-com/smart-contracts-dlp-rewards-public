@@ -97,6 +97,17 @@ describe("UniswapV3", () => {
         // chainId = parseInt(await ethers.provider.send("eth_chainId", []), 16);
         chainId = testChainId;
         if (chainId === 1480) {
+            console.log("Running test in a mainnet fork");
+            await network.provider.request({
+                method: "hardhat_reset",
+                params: [{
+                    forking: {
+                        jsonRpcUrl: process.env.VANA_RPC_URL || "",
+                        blockNumber: 2_500_000,
+                    },
+                }],
+            });
+
             // Mainnet
             routerAddress = "0xeb40cbe65764202E28BcdB1e318adFdF8b2f2A3b";
             quoterV2Address = "0x1b13728ea3C90863990aC0e05987CfeC1888908c";
@@ -110,6 +121,17 @@ describe("UniswapV3", () => {
             poolAddress = "0x850e454DDebf9f61Ef5A86A032c857e0e47C4fA9";
         } else {
             // Moksha
+            console.log("Running test in a Moksha fork");
+            await network.provider.request({
+                method: "hardhat_reset",
+                params: [{
+                    forking: {
+                        jsonRpcUrl: process.env.MOKSHA_RPC_URL || "",
+                        blockNumber: 2_580_450,
+                    },
+                }],
+            });
+
             routerAddress = "0xea04bB2254b7Eee6547F963c2D56C06d50e3A8eB";
             quoterV2Address = "0x3152246f3CD4dD465292Dd4Ffd792E2Cf602e332";
             positionManagerAddress = "0x48Bd633f4B9128a38Ebb4a48b6975EB3Eaf1931b";
@@ -1151,16 +1173,6 @@ describe("UniswapV3", () => {
             let testChainId = parseInt(await ethers.provider.send("eth_chainId", []), 16);
 
             if (testTitle.includes("moksha")) {
-                console.log("Reset network to moksha");
-                await network.provider.request({
-                    method: "hardhat_reset",
-                    params: [{
-                        forking: {
-                            jsonRpcUrl: process.env.MOKSHA_RPC_URL || "",
-                            blockNumber: 2_580_450,
-                        },
-                    }],
-                });
                 testChainId = 14800;
             }
 
