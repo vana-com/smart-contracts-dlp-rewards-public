@@ -23,7 +23,9 @@ contract VanaEpochImplementation is
     bytes32 public constant DLP_PERFORMANCE_ROLE = keccak256("DLP_PERFORMANCE_ROLE");
 
     event EpochCreated(uint256 epochId, uint256 startBlock, uint256 endBlock, uint256 rewardAmount);
+    event EpochUpdated(uint256 epochId, uint256 startBlock, uint256 endBlock, uint256 rewardAmount);
     event EpochSizeUpdated(uint256 newEpochSize);
+    event EpochDayUpdated(uint256 newDaySize);
     event EpochRewardAmountUpdated(uint256 newEpochRewardAmount);
     event EpochDlpRewardAdded(uint256 epochId, uint256 dlpId, uint256 rewardAmount);
     event EpochFinalized(uint256 epochId);
@@ -202,15 +204,17 @@ contract VanaEpochImplementation is
         emit EpochFinalized(epochId);
     }
 
-    function initializeEpoch(
+    function updateEpoch(
         uint256 epochId,
         uint256 startBlock,
         uint256 endBlock,
         uint256 rewardAmount,
         Rewards[] calldata dlpRewards,
         bool isFinalized
-    ) public onlyRole(MAINTAINER_ROLE) {
+    ) external override onlyRole(MAINTAINER_ROLE) {
         Epoch storage epoch = _epochs[epochId];
+
+        bool epochExists = epoch.startBlock != 0 || epoch.endBlock != 0 || epoch.rewardAmount != 0;
 
         epoch.startBlock = startBlock;
         epoch.endBlock = endBlock;
@@ -223,6 +227,23 @@ contract VanaEpochImplementation is
             epoch.dlpIds.add(dlpId);
             epoch.dlps[dlpId].rewardAmount = dlpRewards[i].rewardAmount;
         }
+
+        if (!epochExists) {
+            emit EpochUpdated(epochId, startBlock, endBlock, rewardAmount);
+        } else {
+            if (epochsCount < epochId) {
+                epochsCount = epochId;
+            }
+
+            emit EpochCreated(epochId, startBlock, endBlock, rewardAmount);
+        }
+
+        emit EpochUpdated(
+            epochId,
+            epoch.startBlock,
+            epoch.endBlock,
+            epoch.rewardAmount
+        );
     }
 
     /**
@@ -288,7 +309,9 @@ contract VanaEpochImplementation is
 //        }
 //    }
 
-    function updateDaySize(uint256 newDaySize) external onlyRole(MAINTAINER_ROLE) {
+    function updateDaySize(uint256 newDaySize) external override onlyRole(MAINTAINER_ROLE) {
         daySize = newDaySize;
+
+        emit EpochDayUpdated(newDaySize);
     }
 }

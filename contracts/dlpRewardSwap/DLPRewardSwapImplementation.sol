@@ -48,7 +48,6 @@ contract DLPRewardSwapImplementation is
         swapHelper = initSwapHelper;
         positionManager = initPositionManager;
 
-        _setRoleAdmin(MAINTAINER_ROLE, DEFAULT_ADMIN_ROLE);
         _grantRole(DEFAULT_ADMIN_ROLE, ownerAddress);
         _grantRole(MAINTAINER_ROLE, ownerAddress);
     }

@@ -55,7 +55,6 @@ contract DLPRewardDeployerImplementation is
         rewardPercentage = newRewardPercentage;
         maximumSlippagePercentage = newMaximumSlippagePercentage;
 
-        _setRoleAdmin(MAINTAINER_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(REWARD_DEPLOYER_ROLE, MAINTAINER_ROLE);
         _grantRole(DEFAULT_ADMIN_ROLE, ownerAddress);
         _grantRole(MAINTAINER_ROLE, ownerAddress);

@@ -43,6 +43,7 @@ contract TreasuryImplementation is
     function initialize(address ownerAddress, address initCustodian) external initializer {
         __Pausable_init();
         __AccessControl_init();
+        __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
         custodian = initCustodian;

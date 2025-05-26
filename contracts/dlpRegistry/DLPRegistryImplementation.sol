@@ -48,12 +48,14 @@ contract DLPRegistryImplementation is
     event DlpVerificationUpdated(uint256 indexed dlpId, bool verified);
     event DlpRegistrationDepositAmountUpdated(uint256 newDlpRegistrationDepositAmount);
     event DlpTokenUpdated(uint256 indexed dlpId, address tokenAddress);
-    event DlpLpTokenAddressUpdated(uint256 indexed dlpId, uint256 lpTokenId);
+    event DlpLpTokenIdUpdated(uint256 indexed dlpId, uint256 lpTokenId);
 
     error InvalidDlpStatus();
-    error DlpAlreadyVerified();
+    error InvalidDlpVerification();
     error DlpTokenNotSet();
     error DlpLpTokenIdNotSet();
+    error InvalidTokenAddress();
+    error InvalidLpTokenId();
     error InvalidAddress();
     error InvalidName();
     error NotDlpOwner();
@@ -93,7 +95,6 @@ contract DLPRegistryImplementation is
     function dlps(uint256 dlpId) public view override returns (DlpInfo memory) {
         Dlp storage dlp = _dlps[dlpId];
 
-        uint256 epochsCount = vanaEpoch.epochsCount();
         return
             DlpInfo({
                 id: dlp.id,
@@ -163,48 +164,44 @@ contract DLPRegistryImplementation is
         _registerDlp(registrationInfo);
     }
 
-    function updateDlpVerification(uint256 dlpId, bool isVerified) external override onlyRole(MAINTAINER_ROLE) {
+    function updateDlpVerification(uint256 dlpId, bool isVerify) external override onlyRole(MAINTAINER_ROLE) {
         Dlp storage dlp = _dlps[dlpId];
 
-        if (dlp.status == DlpStatus.None) {
-            revert InvalidDlpStatus();
-        }
-
-        if (dlp.status == DlpStatus.Deregistered) {
-            revert InvalidDlpStatus();
-        }
-
-        if (dlp.isVerified == isVerified) {
-            revert DlpAlreadyVerified();
-        }
-
-        if (dlp.tokenAddress == address(0)) {
-            revert DlpTokenNotSet();
-        }
-
-        if (dlp.lpTokenId == 0) {
-            revert DlpLpTokenIdNotSet();
-        }
-
-        dlp.isVerified = isVerified;
-
-        emit DlpVerificationUpdated(dlpId, isVerified);
+        dlp.isVerified = isVerify;
+        emit DlpVerificationUpdated(dlpId, isVerify);
 
         _setDlpEligibility(dlp);
     }
 
-    function updateDlpToken(uint256 dlpId, address tokenAddress) external override onlyRole(MAINTAINER_ROLE) {
+    function updateDlpToken(uint256 dlpId, address tokenAddress, uint256 lpTokenId) external override onlyRole(MAINTAINER_ROLE) {
         Dlp storage dlp = _dlps[dlpId];
+
         dlp.tokenAddress = tokenAddress;
-
-        emit DlpTokenUpdated(dlpId, tokenAddress);
-    }
-
-    function updateDlpLpTokenId(uint256 dlpId, uint256 lpTokenId) external override onlyRole(MAINTAINER_ROLE) {
-        Dlp storage dlp = _dlps[dlpId];
         dlp.lpTokenId = lpTokenId;
 
-        emit DlpLpTokenAddressUpdated(dlpId, lpTokenId);
+        emit DlpTokenUpdated(dlpId, tokenAddress);
+        emit DlpLpTokenIdUpdated(dlpId, lpTokenId);
+
+        _setDlpEligibility(dlp);
+    }
+
+    function updateDlpTokenAndVerification(
+        uint256 dlpId,
+        address tokenAddress,
+        uint256 lpTokenId,
+        bool isVerify
+    ) external override onlyRole(MAINTAINER_ROLE) {
+        Dlp storage dlp = _dlps[dlpId];
+
+        dlp.tokenAddress = tokenAddress;
+        dlp.lpTokenId = lpTokenId;
+        dlp.isVerified = isVerify;
+
+        emit DlpTokenUpdated(dlpId, tokenAddress);
+        emit DlpLpTokenIdUpdated(dlpId, lpTokenId);
+        emit DlpVerificationUpdated(dlpId, isVerify);
+
+        _setDlpEligibility(dlp);
     }
 
     /**
@@ -223,7 +220,7 @@ contract DLPRegistryImplementation is
 
         Dlp storage dlp = _dlps[dlpId];
 
-        //this validation will be removed in the future
+        // we force the DLP address to remain the same to prevent potential issues with DLP address changes
         if (dlp.dlpAddress != dlpUpdateInfo.dlpAddress) {
             revert DlpAddressCannotBeChanged();
         }
@@ -276,7 +273,6 @@ contract DLPRegistryImplementation is
         dlp.status = DlpStatus.Deregistered;
         _eligibleDlpsList.remove(dlpId);
 
-
         emit DlpStatusUpdated(dlpId, DlpStatus.Deregistered);
     }
 
@@ -302,8 +298,6 @@ contract DLPRegistryImplementation is
 
         uint256 dlpId = ++dlpsCount;
         Dlp storage dlp = _dlps[dlpId];
-
-        uint256 epochsCount = vanaEpoch.epochsCount();
 
         dlp.id = dlpId;
         dlp.dlpAddress = registrationInfo.dlpAddress;
@@ -400,23 +394,33 @@ contract DLPRegistryImplementation is
     }
 
     function _setDlpEligibility(Dlp storage dlp) internal {
-        uint256 epochsCount = vanaEpoch.epochsCount();
-        if (epochsCount > 1 && !vanaEpoch.epochs(epochsCount - 1).isFinalized) {
-            revert LastEpochMustBeFinalized();
+        vanaEpoch.createEpochs();
+
+        DlpStatus currentStatus = dlp.status;
+
+        if (currentStatus == DlpStatus.None || currentStatus == DlpStatus.Deregistered) {
+            return;
         }
 
-        if (dlp.status == DlpStatus.Registered) {
-            if (dlp.isVerified && dlp.tokenAddress != address(0)) {
-                dlp.status = DlpStatus.Eligible;
-                _eligibleDlpsList.add(dlp.id);
-                emit DlpStatusUpdated(dlp.id, DlpStatus.Eligible);
+        DlpStatus newStatus = currentStatus;
+
+        if (currentStatus == DlpStatus.Registered && dlp.lpTokenId != 0 && dlp.tokenAddress != address(0) && dlp.isVerified) {
+            newStatus = DlpStatus.Eligible;
+            _eligibleDlpsList.add(dlp.id);
+        } else {
+            newStatus = DlpStatus.Registered;
+            _eligibleDlpsList.remove(dlp.id);
+        }
+
+        if (newStatus != currentStatus) {
+
+            uint256 epochsCount = vanaEpoch.epochsCount();
+            if (epochsCount > 1 && !vanaEpoch.epochs(epochsCount - 1).isFinalized) {
+                revert LastEpochMustBeFinalized();
             }
-        } else if (dlp.status == DlpStatus.Eligible) {
-            if (!dlp.isVerified || dlp.tokenAddress == address(0)) {
-                dlp.status = DlpStatus.Registered;
-                _eligibleDlpsList.remove(dlp.id);
-                emit DlpStatusUpdated(dlp.id, DlpStatus.Registered);
-            }
+
+            dlp.status = newStatus;
+            emit DlpStatusUpdated(dlp.id, newStatus);
         }
     }
 }
