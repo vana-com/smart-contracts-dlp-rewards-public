@@ -3,8 +3,8 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
 import { verifyContract } from "./helpers";
 
-const implementationContractName = "DLPRegistryImplementation";
-const previousImplementationContractName = "DLPRegistryImplementationOld";
+const implementationContractName = "DLPRewardDeployerImplementation";
+const previousImplementationContractName = "DLPRewardDeployerImplementationOld";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const [deployer] = await ethers.getSigners();
@@ -37,4 +37,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 };
 
 export default func;
-func.tags = ["DLPRegistryImplementation"];
+func.tags = ["DLPRewardDeployerImplementation"];
