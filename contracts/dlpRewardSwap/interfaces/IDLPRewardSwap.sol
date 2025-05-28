@@ -110,5 +110,5 @@ interface IDLPRewardSwap {
 
     function quoteSplitRewardSwap(
         QuoteSplitRewardSwapParams calldata params
-    ) external returns (uint256 tokenRewardAmount, uint256 spareToken, uint256 spareVana, uint256 usedVanaAmount);
+    ) external view returns (uint256 tokenRewardAmount, uint256 spareToken, uint256 spareVana, uint256 usedVanaAmount);
 }
