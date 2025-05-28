@@ -204,6 +204,11 @@ contract VanaEpochImplementation is
         emit EpochFinalized(epochId);
     }
 
+    function updateEpochsCount(uint256 newEpochsCount) external onlyRole(MAINTAINER_ROLE) {
+        epochsCount = newEpochsCount;
+    }
+
+
     function updateEpoch(
         uint256 epochId,
         uint256 startBlock,
@@ -228,7 +233,7 @@ contract VanaEpochImplementation is
             epoch.dlps[dlpId].rewardAmount = dlpRewards[i].rewardAmount;
         }
 
-        if (!epochExists) {
+        if (epochExists) {
             emit EpochUpdated(epochId, startBlock, endBlock, rewardAmount);
         } else {
             if (epochsCount < epochId) {
@@ -237,13 +242,6 @@ contract VanaEpochImplementation is
 
             emit EpochCreated(epochId, startBlock, endBlock, rewardAmount);
         }
-
-        emit EpochUpdated(
-            epochId,
-            epoch.startBlock,
-            epoch.endBlock,
-            epoch.rewardAmount
-        );
     }
 
     /**
@@ -266,48 +264,6 @@ contract VanaEpochImplementation is
             lastEpoch = newEpoch;
         }
     }
-
-//    function migrateEpochData(address dlpRootEpochAddress, uint256 epochIdStart, uint256 epochIdEnd) external onlyRole(MAINTAINER_ROLE) {
-//        IDLPRootEpoch dlpRootEpoch = IDLPRootEpoch(dlpRootEpochAddress);
-//
-//        uint256 dlpsCount = dlpRegistry.dlpsCount();
-//
-//        for (uint256 epochId = epochIdStart; epochId <= epochIdEnd; ) {
-//            Epoch storage epoch = _epochs[epochId];
-//            IDLPRootEpoch.EpochInfo memory epochInfo = dlpRootEpoch.epochs(epochId);
-//
-//            epoch.startBlock = epochInfo.startBlock;
-//            epoch.endBlock = epochInfo.endBlock;
-//            epoch.rewardAmount = epochInfo.rewardAmount;
-//            epoch.isFinalized = epochInfo.isFinalized;
-//
-//            uint256 dlpId;
-//            uint256 epochDlpIdsCount = epochInfo.dlpIds.length;
-//            for (dlpId = 0; dlpId < epochDlpIdsCount; ) {
-//                epoch.dlpIds.add(epochInfo.dlpIds[dlpId]);
-//
-//                unchecked {
-//                    ++dlpId;
-//                }
-//            }
-//
-//            for (dlpId = 1; dlpId <= dlpsCount; ) {
-//                IDLPRootEpoch.EpochDlpInfo memory epochDlpOld = dlpRootEpoch.epochDlps(epochId, dlpId);
-//                EpochDlp storage epochDlp = epoch.dlps[dlpId];
-//
-//                epochDlp.rewardAmount = epochDlpOld.ownerRewardAmount;
-//                epochDlp.distributedAmount = epochDlpOld.ownerRewardAmount;
-//
-//                unchecked {
-//                    ++dlpId;
-//                }
-//            }
-//
-//            unchecked {
-//                ++epochId;
-//            }
-//        }
-//    }
 
     function updateDaySize(uint256 newDaySize) external override onlyRole(MAINTAINER_ROLE) {
         daySize = newDaySize;

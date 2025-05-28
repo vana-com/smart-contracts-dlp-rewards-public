@@ -98,6 +98,15 @@ contract DLPRewardDeployerImplementation is
         _unpause();
     }
 
+    function epochDlpRewards(uint256 epochId, uint256 dlpId) external view returns (EpochDlpRewardInfo memory) {
+        EpochDlpReward storage epochDlpReward = _epochRewards[epochId].epochDlpRewards[dlpId];
+
+        return EpochDlpRewardInfo({
+            totalDistributedAmount: epochDlpReward.totalDistributedAmount,
+            tranchesCount: epochDlpReward.tranchesCount
+        });
+    }
+
     function epochDlpDistributedRewards(uint256 epochId, uint256 dlpId) external view returns (DistributedReward[]  memory) {
         EpochDlpReward storage epochDlpReward = _epochRewards[epochId].epochDlpRewards[dlpId];
 
