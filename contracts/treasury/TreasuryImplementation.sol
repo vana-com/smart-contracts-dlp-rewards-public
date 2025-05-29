@@ -48,7 +48,6 @@ contract TreasuryImplementation is
 
         custodian = initCustodian;
 
-        _setRoleAdmin(CUSTODIAN_ROLE, DEFAULT_ADMIN_ROLE);
         _grantRole(DEFAULT_ADMIN_ROLE, ownerAddress);
         _grantRole(CUSTODIAN_ROLE, ownerAddress);
         _grantRole(CUSTODIAN_ROLE, initCustodian);
