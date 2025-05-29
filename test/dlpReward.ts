@@ -226,8 +226,8 @@ describe("DLP System Tests", () => {
     await dlpRegistry.connect(admin).updateVanaEpoch(vanaEpoch.target);
     await dlpRegistry.connect(admin).updateTreasury(dlpRegistryTreasury.target);
 
-    await dlpRewardDeployer.connect(admin).updateTreasury(dlpRegistryTreasuryDeploy.target);
-    await dlpRegistryTreasury.connect(admin).updateCustodian(dlpRewardDeployer.target);
+    await dlpRewardDeployer.connect(admin).updateTreasury(dlpRewardDeployerTreasury.target);
+    await dlpRegistry.connect(admin).updateTreasury(dlpRegistryTreasuryDeploy.target);
 
     await dlpPerformance.connect(admin).updateVanaEpoch(vanaEpoch.target);
     await vanaEpoch.connect(admin).updateDlpPerformance(dlpPerformance.target);
@@ -262,8 +262,8 @@ describe("DLP System Tests", () => {
       metadata: "Test DLP 2 metadata"
     };
 
-    await vanaEpoch.initializeEpoch(0, 0, EPOCH_START_BLOCK - 1, 0, [], true);
-    // await vanaEpoch.initializeEpoch(1, EPOCH_START_BLOCK, EPOCH_START_BLOCK + DAY_SIZE * EPOCH_SIZE, EPOCH_REWARD_AMOUNT, [], false);
+    await vanaEpoch.updateEpoch(0, 0, EPOCH_START_BLOCK - 1, 0, [], true);
+    // await vanaEpoch.updateEpoch(1, EPOCH_START_BLOCK, EPOCH_START_BLOCK + DAY_SIZE * EPOCH_SIZE, EPOCH_REWARD_AMOUNT, [], false);
   };
 
   async function advanceToEpochN(epochNumber: number) {
@@ -405,11 +405,8 @@ describe("DLP System Tests", () => {
       await dlpRegistry.connect(dlp1Owner).registerDlp(dlp1Info, { value: DLP_REGISTRATION_DEPOSIT });
       await dlpRegistry.connect(dlp2Owner).registerDlp(dlp2Info, { value: DLP_REGISTRATION_DEPOSIT });
 
-      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address);
-      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address);
-
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(1, 1);
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(2, 2);
+      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address, 1);
+      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address, 2);
 
       await dlpRegistry.connect(maintainer).updateDlpVerification(1, true);
       await dlpRegistry.connect(maintainer).updateDlpVerification(2, true);
@@ -667,10 +664,8 @@ describe("DLP System Tests", () => {
       await dlpRegistry.connect(dlp2Owner).registerDlp(dlp2Info, { value: DLP_REGISTRATION_DEPOSIT });
 
       // Make DLPs eligible
-      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address);
-      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address);
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(1, 1);
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(2, 2);
+      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address, 1);
+      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address, 2);
       await dlpRegistry.connect(maintainer).updateDlpVerification(1, true);
       await dlpRegistry.connect(maintainer).updateDlpVerification(2, true);
     });
@@ -993,9 +988,11 @@ describe("DLP System Tests", () => {
 
       await dlpRegistry
         .connect(maintainer)
-        .updateDlpToken(1, token1)
+        .updateDlpToken(1, token1, 1)
         .should.emit(dlpRegistry, "DlpTokenUpdated")
-        .withArgs(1, token1);
+        .withArgs(1, token1)
+        .and.emit(dlpRegistry, "DlpLpTokenIdUpdated")
+        .withArgs(1, 1);
 
       const dlp1 = await dlpRegistry.dlps(1);
       dlp1.tokenAddress.should.eq(token1);
@@ -1007,9 +1004,7 @@ describe("DLP System Tests", () => {
         .registerDlp(dlp1Info, { value: DLP_REGISTRATION_DEPOSIT });
 
       // Set token first
-      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address);
-
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(1, 1);
+      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address, 1);
 
       // Verify DLP
       await dlpRegistry
@@ -1168,10 +1163,8 @@ describe("DLP System Tests", () => {
       await dlpRegistry.connect(dlp2Owner).registerDlp(dlp2Info, { value: DLP_REGISTRATION_DEPOSIT });
 
       // 2. Set token addresses and make DLPs eligible
-      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address);
-      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address);
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(1, 1);
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(2, 2);
+      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address, 1);
+      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address, 2);
       await dlpRegistry.connect(maintainer).updateDlpVerification(1, true);
       await dlpRegistry.connect(maintainer).updateDlpVerification(2, true);
 
@@ -1233,10 +1226,8 @@ describe("DLP System Tests", () => {
       await dlpRegistry.connect(dlp2Owner).registerDlp(dlp2Info, { value: DLP_REGISTRATION_DEPOSIT });
 
       // 2. Make them eligible
-      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address);
-      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address);
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(1, 1);
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(2, 2);
+      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address, 1);
+      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address, 2);
       await dlpRegistry.connect(maintainer).updateDlpVerification(1, true);
       await dlpRegistry.connect(maintainer).updateDlpVerification(2, true);
 
@@ -1283,7 +1274,7 @@ describe("DLP System Tests", () => {
     });
   });
 
-  describe.only("Dlp Reward Deployer", () => {
+  describe("Dlp Reward Deployer", () => {
     const dlp1PerformanceDefault = {
       dlpId: 1,
       totalScore: parseEther(0.6),
@@ -1314,11 +1305,8 @@ describe("DLP System Tests", () => {
       await dlpRegistry.connect(dlp1Owner).registerDlp(dlp1Info, { value: DLP_REGISTRATION_DEPOSIT });
       await dlpRegistry.connect(dlp2Owner).registerDlp(dlp2Info, { value: DLP_REGISTRATION_DEPOSIT });
 
-      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address);
-      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address);
-
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(1, 1);
-      await dlpRegistry.connect(maintainer).updateDlpLpTokenId(2, 2);
+      await dlpRegistry.connect(maintainer).updateDlpToken(1, token1.address, 1);
+      await dlpRegistry.connect(maintainer).updateDlpToken(2, token2.address, 2);
 
       await dlpRegistry.connect(maintainer).updateDlpVerification(1, true);
       await dlpRegistry.connect(maintainer).updateDlpVerification(2, true);
@@ -1389,7 +1377,7 @@ describe("DLP System Tests", () => {
         );
     });
 
-    it.only("should distributeRewards", async function () {
+    it("should distributeRewards", async function () {
       await advanceToEpochN(2);
 
       await vanaEpoch.connect(user1).createEpochs();
@@ -1431,7 +1419,7 @@ describe("DLP System Tests", () => {
       epoch1Dlp1DistributedRewards[0].usedVanaAmount.should.eq(usedVanaAmount);
     });
 
-    it.only("should distributeRewards multiple times", async function () {
+    it("should distributeRewards multiple times", async function () {
       await advanceToEpochN(2);
 
       await vanaEpoch.connect(user1).createEpochs();

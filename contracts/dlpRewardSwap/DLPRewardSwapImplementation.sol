@@ -48,7 +48,6 @@ contract DLPRewardSwapImplementation is
         swapHelper = initSwapHelper;
         positionManager = initPositionManager;
 
-        _setRoleAdmin(MAINTAINER_ROLE, DEFAULT_ADMIN_ROLE);
         _grantRole(DEFAULT_ADMIN_ROLE, ownerAddress);
         _grantRole(MAINTAINER_ROLE, ownerAddress);
     }
@@ -103,7 +102,7 @@ contract DLPRewardSwapImplementation is
         }
     }
 
-    function quoteLpSwap(QuoteLpSwapParams memory params) internal returns (LpSwapQuote memory res) {
+    function quoteLpSwap(QuoteLpSwapParams memory params) internal view returns (LpSwapQuote memory res) {
         require(params.amountIn > 0, DLPRewardSwap__ZeroAmount());
         require(params.tokenOut != address(0), DLPRewardSwap__ZeroAddress());
         require(params.sqrtRatioLowerX96 <= params.sqrtRatioUpperX96, DLPRewardSwap__InvalidRange());
@@ -598,6 +597,7 @@ contract DLPRewardSwapImplementation is
         QuoteSplitRewardSwapParams calldata params
     )
         external
+        view
         override
         returns (uint256 tokenRewardAmount, uint256 spareToken, uint256 spareVana, uint256 usedVanaAmount)
     {

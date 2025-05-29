@@ -14,6 +14,5 @@ abstract contract DLPRegistryStorageV1 is IDLPRegistry {
     mapping(address dlpAddress => uint256 dlpId) public override dlpIds;
     mapping(string dlpName => uint256 dlpId) public override dlpNameToId;
 
-    uint256 public override eligibleDlpsLimit;
     EnumerableSet.UintSet internal _eligibleDlpsList;
 }

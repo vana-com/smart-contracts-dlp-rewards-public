@@ -102,5 +102,5 @@ interface ISwapHelper {
     /// @return quote The quote object containing the amounts and price after the swap.
     function quoteSlippageExactInputSingle(
         QuoteSlippageExactInputSingleParams calldata params
-    ) external returns (Quote memory quote);
+    ) external view returns (Quote memory quote);
 }

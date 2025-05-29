@@ -55,7 +55,6 @@ contract DLPRewardDeployerImplementation is
         rewardPercentage = newRewardPercentage;
         maximumSlippagePercentage = newMaximumSlippagePercentage;
 
-        _setRoleAdmin(MAINTAINER_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(REWARD_DEPLOYER_ROLE, MAINTAINER_ROLE);
         _grantRole(DEFAULT_ADMIN_ROLE, ownerAddress);
         _grantRole(MAINTAINER_ROLE, ownerAddress);
@@ -97,6 +96,15 @@ contract DLPRewardDeployerImplementation is
 
     function unpause() external override onlyRole(MAINTAINER_ROLE) {
         _unpause();
+    }
+
+    function epochDlpRewards(uint256 epochId, uint256 dlpId) external view returns (EpochDlpRewardInfo memory) {
+        EpochDlpReward storage epochDlpReward = _epochRewards[epochId].epochDlpRewards[dlpId];
+
+        return EpochDlpRewardInfo({
+            totalDistributedAmount: epochDlpReward.totalDistributedAmount,
+            tranchesCount: epochDlpReward.tranchesCount
+        });
     }
 
     function epochDlpDistributedRewards(uint256 epochId, uint256 dlpId) external view returns (DistributedReward[]  memory) {

@@ -12,7 +12,7 @@ contract DLPPerformanceImplementation is
     UUPSUpgradeable,
     PausableUpgradeable,
     AccessControlUpgradeable,
-DLPPerformanceStorageV1
+    DLPPerformanceStorageV1
 {
     bytes32 public constant MAINTAINER_ROLE = keccak256("MAINTAINER_ROLE");
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -41,7 +41,6 @@ DLPPerformanceStorageV1
 
         dlpRegistry = IDLPRegistry(dlpRegistryAddress);
 
-        _setRoleAdmin(MAINTAINER_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(MANAGER_ROLE, MAINTAINER_ROLE);
         _grantRole(DEFAULT_ADMIN_ROLE, ownerAddress);
         _grantRole(MAINTAINER_ROLE, ownerAddress);

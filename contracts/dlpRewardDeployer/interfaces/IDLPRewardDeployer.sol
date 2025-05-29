@@ -26,13 +26,6 @@ interface IDLPRewardDeployer {
         mapping(uint256 dlpId => EpochDlpReward epochDlpReward) epochDlpRewards;
     }
 
-    struct EpochDlpPerformanceInfo {
-        uint256 totalScore;
-        uint256 tradingVolume;
-        uint256 uniqueContributors;
-        uint256 dataAccessFees;
-    }
-
     function version() external pure returns (uint256);
     function dlpRegistry() external view returns (IDLPRegistry);
     function vanaEpoch() external view returns (IVanaEpoch);
@@ -42,6 +35,11 @@ interface IDLPRewardDeployer {
     function rewardPercentage() external view returns (uint256);
     function maximumSlippagePercentage() external view returns (uint256);
 
+    struct EpochDlpRewardInfo {
+        uint256 totalDistributedAmount;
+        uint256 tranchesCount;
+    }
+    function epochDlpRewards(uint256 epochId, uint256 dlpId) external view returns (EpochDlpRewardInfo memory);
     function epochDlpDistributedRewards(uint256 epochId, uint256 dlpId) external view returns (DistributedReward[] memory);
 
     function pause() external;

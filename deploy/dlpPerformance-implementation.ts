@@ -6,9 +6,6 @@ import { verifyContract } from "./helpers";
 const implementationContractName = "DLPPerformanceImplementation";
 const previousImplementationContractName = "DLPPerformanceImplementationOld";
 
-//data = updateCancelDelay(100)
-// 0x576d6d4d0000000000000000000000000000000000000000000000000000000000000064
-
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const [deployer] = await ethers.getSigners();
 

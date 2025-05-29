@@ -23,7 +23,9 @@ contract VanaEpochImplementation is
     bytes32 public constant DLP_PERFORMANCE_ROLE = keccak256("DLP_PERFORMANCE_ROLE");
 
     event EpochCreated(uint256 epochId, uint256 startBlock, uint256 endBlock, uint256 rewardAmount);
+    event EpochUpdated(uint256 epochId, uint256 startBlock, uint256 endBlock, uint256 rewardAmount);
     event EpochSizeUpdated(uint256 newEpochSize);
+    event EpochDayUpdated(uint256 newDaySize);
     event EpochRewardAmountUpdated(uint256 newEpochRewardAmount);
     event EpochDlpRewardAdded(uint256 epochId, uint256 dlpId, uint256 rewardAmount);
     event EpochFinalized(uint256 epochId);
@@ -202,15 +204,22 @@ contract VanaEpochImplementation is
         emit EpochFinalized(epochId);
     }
 
-    function initializeEpoch(
+    function updateEpochsCount(uint256 newEpochsCount) external onlyRole(MAINTAINER_ROLE) {
+        epochsCount = newEpochsCount;
+    }
+
+
+    function updateEpoch(
         uint256 epochId,
         uint256 startBlock,
         uint256 endBlock,
         uint256 rewardAmount,
         Rewards[] calldata dlpRewards,
         bool isFinalized
-    ) public onlyRole(MAINTAINER_ROLE) {
+    ) external override onlyRole(MAINTAINER_ROLE) {
         Epoch storage epoch = _epochs[epochId];
+
+        bool epochExists = epoch.startBlock != 0 || epoch.endBlock != 0 || epoch.rewardAmount != 0;
 
         epoch.startBlock = startBlock;
         epoch.endBlock = endBlock;
@@ -222,6 +231,16 @@ contract VanaEpochImplementation is
 
             epoch.dlpIds.add(dlpId);
             epoch.dlps[dlpId].rewardAmount = dlpRewards[i].rewardAmount;
+        }
+
+        if (epochExists) {
+            emit EpochUpdated(epochId, startBlock, endBlock, rewardAmount);
+        } else {
+            if (epochsCount < epochId) {
+                epochsCount = epochId;
+            }
+
+            emit EpochCreated(epochId, startBlock, endBlock, rewardAmount);
         }
     }
 
@@ -246,49 +265,9 @@ contract VanaEpochImplementation is
         }
     }
 
-//    function migrateEpochData(address dlpRootEpochAddress, uint256 epochIdStart, uint256 epochIdEnd) external onlyRole(MAINTAINER_ROLE) {
-//        IDLPRootEpoch dlpRootEpoch = IDLPRootEpoch(dlpRootEpochAddress);
-//
-//        uint256 dlpsCount = dlpRegistry.dlpsCount();
-//
-//        for (uint256 epochId = epochIdStart; epochId <= epochIdEnd; ) {
-//            Epoch storage epoch = _epochs[epochId];
-//            IDLPRootEpoch.EpochInfo memory epochInfo = dlpRootEpoch.epochs(epochId);
-//
-//            epoch.startBlock = epochInfo.startBlock;
-//            epoch.endBlock = epochInfo.endBlock;
-//            epoch.rewardAmount = epochInfo.rewardAmount;
-//            epoch.isFinalized = epochInfo.isFinalized;
-//
-//            uint256 dlpId;
-//            uint256 epochDlpIdsCount = epochInfo.dlpIds.length;
-//            for (dlpId = 0; dlpId < epochDlpIdsCount; ) {
-//                epoch.dlpIds.add(epochInfo.dlpIds[dlpId]);
-//
-//                unchecked {
-//                    ++dlpId;
-//                }
-//            }
-//
-//            for (dlpId = 1; dlpId <= dlpsCount; ) {
-//                IDLPRootEpoch.EpochDlpInfo memory epochDlpOld = dlpRootEpoch.epochDlps(epochId, dlpId);
-//                EpochDlp storage epochDlp = epoch.dlps[dlpId];
-//
-//                epochDlp.rewardAmount = epochDlpOld.ownerRewardAmount;
-//                epochDlp.distributedAmount = epochDlpOld.ownerRewardAmount;
-//
-//                unchecked {
-//                    ++dlpId;
-//                }
-//            }
-//
-//            unchecked {
-//                ++epochId;
-//            }
-//        }
-//    }
-
-    function updateDaySize(uint256 newDaySize) external onlyRole(MAINTAINER_ROLE) {
+    function updateDaySize(uint256 newDaySize) external override onlyRole(MAINTAINER_ROLE) {
         daySize = newDaySize;
+
+        emit EpochDayUpdated(newDaySize);
     }
 }

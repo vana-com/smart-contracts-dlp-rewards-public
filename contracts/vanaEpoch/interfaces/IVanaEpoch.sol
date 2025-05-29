@@ -47,6 +47,7 @@ interface IVanaEpoch {
     // Admin functions
     function pause() external;
     function unpause() external;
+    function updateDaySize(uint256 newDaySize) external;
     function updateEpochSize(uint256 newEpochSize) external;
     function updateEpochRewardAmount(uint256 newEpochRewardAmount) external;
 
@@ -63,4 +64,13 @@ interface IVanaEpoch {
 
     function saveEpochDlpRewards(uint256 epochId, Rewards[] calldata dlpRewards, bool finalScores) external;
     function forceFinalizedEpoch(uint256 epochId) external;
+
+    function updateEpoch(
+        uint256 epochId,
+        uint256 startBlock,
+        uint256 endBlock,
+        uint256 rewardAmount,
+        Rewards[] calldata dlpRewards,
+        bool isFinalized
+    ) external;
 }

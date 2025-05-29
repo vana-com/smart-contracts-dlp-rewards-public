@@ -40,7 +40,6 @@ interface IDLPRegistry {
     function eligibleDlpsListAt(uint256 index) external view returns (uint256);
 
     function dlpRegistrationDepositAmount() external view returns (uint256);
-    function eligibleDlpsLimit() external view returns (uint256);
     function dlpsCount() external view returns (uint256);
 
     struct DlpInfo {
@@ -88,6 +87,11 @@ interface IDLPRegistry {
     function updateDlpVerification(uint256 dlpId, bool isVerified) external;
     function updateDlp(uint256 dlpId, DlpRegistration calldata dlpUpdateInfo) external;
     function deregisterDlp(uint256 dlpId) external;
-    function updateDlpToken(uint256 dlpId, address tokenAddress) external;
-    function updateDlpLpTokenId(uint256 dlpId, uint256 lpTokenId) external;
+    function updateDlpToken(uint256 dlpId, address tokenAddress, uint256 lpTokenId) external;
+    function updateDlpTokenAndVerification(
+        uint256 dlpId,
+        address tokenAddress,
+        uint256 lpTokenId,
+        bool isVerify
+    ) external;
 }
