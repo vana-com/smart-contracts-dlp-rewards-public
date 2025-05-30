@@ -2114,6 +2114,410 @@ describe("UniswapV3", () => {
             (await ethers.provider.getBalance(dlpRewardSwap)).should.be.eq(0);
         });
 
+        it("should splitRewardSwap with zero reward percentage (fuzzing)", async () => {
+            let amountIn = parseEther(1_000);
+
+            const zeroForOne = WVANAAddress.toLowerCase() < ERC20Token.target.toLowerCase();
+
+            let quote = await dataDexQuoterV2.quoteExactInputSingle.staticCall({
+                tokenIn: WVANAAddress,
+                tokenOut: ERC20Token,
+                fee: FeeAmount.MEDIUM,
+                amountIn: amountIn,
+                sqrtPriceLimitX96: 0,
+            });
+
+            const balanceBefore = await ethers.provider.getBalance(foundation.address);
+            const tokenBalanceBefore = await ERC20Token.balanceOf(foundation.address);
+
+            let tx = await swapHelper.connect(foundation).exactInputSingle({
+                tokenIn: VANA,
+                tokenOut: ERC20Token.target,
+                fee: FeeAmount.MEDIUM,
+                recipient: foundation.address,
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+            }, { value: amountIn });
+            const txReceipt = await getReceipt(tx);
+            (await ERC20Token.balanceOf(foundation.address)).should.be.eq(tokenBalanceBefore + quote.amountOut);
+            (await ethers.provider.getBalance(foundation.address)).should.be.eq(balanceBefore - amountIn - txReceipt.fee);
+
+            const amountMintInVANA = amountIn;
+            const amountMintInToken = await ERC20Token.balanceOf(foundation.address);
+
+            await WVANA.connect(foundation).deposit({ value: amountMintInVANA });
+            (await WVANA.balanceOf(foundation.address)).should.be.eq(amountMintInVANA);
+
+            await WVANA.connect(foundation).approve(positionManager.target, amountMintInVANA);
+            await ERC20Token.connect(foundation).approve(positionManager.target, amountMintInToken);
+
+            const slot0 = await pool.slot0();
+            const currentLiquidity = await pool.liquidity();
+
+            const tickLower = nearestUsableTick(TickMath.MIN_TICK, TICK_SPACINGS[FeeAmount.MEDIUM]);
+            const tickUpper = nearestUsableTick(TickMath.MAX_TICK, TICK_SPACINGS[FeeAmount.MEDIUM]);
+
+            const liquidity = maxLiquidityForAmounts(
+                JSBI.BigInt(slot0.sqrtPriceX96.toString()),
+                TickMath.getSqrtRatioAtTick(tickLower),
+                TickMath.getSqrtRatioAtTick(tickUpper),
+                JSBI.BigInt(amountMintInVANA.toString()),
+                JSBI.BigInt(amountMintInToken.toString()),
+                false
+            );
+
+            // console.log("liquidity", liquidity.toString());
+            // console.log("amountMintInVANA", amountMintInVANA.toString());
+            // console.log("amountMintInToken", amountMintInToken.toString());
+
+            BigInt(liquidity.toString()).should.be.gt(0);
+
+            let mintAmount0: any;
+            let mintAmount1: any;
+            {
+                const pToken0 = new Token(chainId, WVANA.target, 18, "WVANA", "WVANA");
+                const pToken1 = new Token(chainId, ERC20Token.target, Number(await ERC20Token.decimals()), await ERC20Token.symbol(), await ERC20Token.name());
+                const pPool = new Pool(
+                    pToken0,
+                    pToken1,
+                    FeeAmount.MEDIUM,
+                    JSBI.BigInt(slot0.sqrtPriceX96.toString()),
+                    JSBI.BigInt(currentLiquidity.toString()),
+                    Number(slot0.tick),
+                );
+
+                const position = new Position({
+                    pool: pPool,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    liquidity: liquidity,
+                });
+
+                mintAmount0 = position.mintAmounts.amount0;
+                mintAmount1 = position.mintAmounts.amount1;
+            }
+
+            const lpTokenId = 1550;
+            await positionManager
+                .connect(foundation)
+                .mint({
+                    token0: WVANA,
+                    token1: ERC20Token,
+                    fee: FeeAmount.MEDIUM,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    amount0Desired: amountMintInVANA,
+                    amount1Desired: amountMintInToken,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: foundation.address,
+                    deadline: Math.floor(Date.now() / 1000) + 60 * 10,
+                })
+                .should.emit(pool, "Mint")
+                .withArgs(
+                    positionManager.target,
+                    positionManager.target,
+                    tickLower,
+                    tickUpper,
+                    liquidity.toString(),
+                    mintAmount0.toString(),
+                    mintAmount1.toString(),
+                )
+                .also.emit(positionManager, "IncreaseLiquidity")
+                .withArgs(
+                    lpTokenId,
+                    liquidity.toString(),
+                    mintAmount0.toString(),
+                    mintAmount1.toString(),
+                );
+
+            let counter = 0;
+            const numRuns = RUN_FACTOR * NUM_RUNS;
+
+            await fc.assert(
+                fc.asyncProperty(fc.bigInt({ min: parseEther(1), max: parseEther(1_000_000) }), async (amountIn) => {
+                    const snapshotId = await network.provider.send("evm_snapshot");
+
+                    const rewardPercentage = parseEther(0); // 50%
+
+                    counter++;
+                    process.stdout.write(`\rsplitRewardSwap ${counter} / ${numRuns}`);
+
+                    try {
+                        await network.provider.send("hardhat_setBalance", [
+                            foundation.address,
+                            toHex(2n * amountIn),
+                        ]);
+
+                        const dlpTokenBalanceBefore = await ERC20Token.balanceOf(dlp.address);
+
+                        const quote = await dlpRewardSwap.quoteSplitRewardSwap.staticCall({
+                            amountIn: amountIn,
+                            lpTokenId: lpTokenId,
+                            rewardPercentage: rewardPercentage,
+                            maximumSlippagePercentage: SLIPPAGE_TOLERANCE,
+                        });
+
+                        // console.log(
+                        //     "amountIn", amountIn,
+                        //     "usedVanaAmount", quote.usedVanaAmount.toString(),
+                        //     "tokenRewardAmount", quote.tokenRewardAmount.toString(),
+                        //     "spareVana", quote.spareVana.toString(),
+                        //     "spareToken", quote.spareToken.toString());
+
+                        const rewardAmount = amountIn * rewardPercentage / parseEther(100);
+                        const lpAmount = amountIn - rewardAmount;
+                        const usedVanaForLp = lpAmount - quote.spareVana;
+                        const usedVanaForReward = quote.usedVanaAmount - usedVanaForLp;
+                        const unusedVanaForReward = rewardAmount - usedVanaForReward;
+                        quote.usedVanaAmount.should.be.eq(usedVanaForLp + usedVanaForReward);
+                        amountIn.should.be.eq(quote.usedVanaAmount + quote.spareVana + unusedVanaForReward);
+
+                        const foundationVanaBalanceBefore = await ethers.provider.getBalance(foundation.address);
+
+                        const treasuryVanaBalanceBefore = await ethers.provider.getBalance(treasury.address);
+                        const treasuryTokenBalanceBefore = await ERC20Token.balanceOf(treasury.address);
+
+                        const poolVanaBalanceBefore = await WVANA.balanceOf(pool.target);
+                        const poolTokenBalanceBefore = await ERC20Token.balanceOf(pool.target);
+
+                        tx = await dlpRewardSwap.connect(foundation).splitRewardSwap({
+                            lpTokenId: lpTokenId,
+                            rewardPercentage: rewardPercentage,
+                            maximumSlippagePercentage: SLIPPAGE_TOLERANCE,
+                            rewardRecipient: dlp.address,
+                            spareRecipient: treasury.address,
+                        },
+                            { value: amountIn }
+                        );
+                        const txReceipt = await getReceipt(tx);
+
+                        const foundationVanaBalanceAfter = await ethers.provider.getBalance(foundation.address);
+                        foundationVanaBalanceAfter.should.be.eq(foundationVanaBalanceBefore - amountIn + unusedVanaForReward - txReceipt.fee);
+                        foundationVanaBalanceAfter.should.be.eq(foundationVanaBalanceBefore - quote.usedVanaAmount - quote.spareVana - txReceipt.fee);
+
+                        const poolVanaBalanceAfter = await WVANA.balanceOf(pool.target);
+                        poolVanaBalanceAfter.should.be.eq(poolVanaBalanceBefore + amountIn - unusedVanaForReward - quote.spareVana);
+
+                        const poolTokenBalanceAfter = await ERC20Token.balanceOf(pool.target);
+                        poolTokenBalanceAfter.should.be.eq(poolTokenBalanceBefore - quote.tokenRewardAmount - quote.spareToken);
+
+                        const dlpTokenBalanceAfter = await ERC20Token.balanceOf(dlp.address);
+                        dlpTokenBalanceAfter.should.be.eq(dlpTokenBalanceBefore + quote.tokenRewardAmount);
+
+                        const treasuryVanaBalanceAfter = await ethers.provider.getBalance(treasury.address);
+                        treasuryVanaBalanceAfter.should.be.eq(treasuryVanaBalanceBefore + quote.spareVana);
+
+                        const treasuryTokenBalanceAfter = await ERC20Token.balanceOf(treasury.address);
+                        treasuryTokenBalanceAfter.should.be.eq(treasuryTokenBalanceBefore + quote.spareToken);
+
+                        (await ERC20Token.balanceOf(dlpRewardSwap)).should.be.eq(0);
+                        (await ethers.provider.getBalance(dlpRewardSwap)).should.be.eq(0);
+                    } catch (err) {
+                        console.error("❌ Failed with input:", amountIn, err);
+                        throw err;
+                    } finally {
+                        await network.provider.send("evm_revert", [snapshotId]);
+                    }
+                }),
+                {
+                    numRuns: numRuns,
+                    verbose: true,
+                }
+            );
+        }).timeout(10_800_000); // 3 hours;
+
+        it("should splitRewardSwap with zero reward percentage (single)", async () => {
+            let amountIn = parseEther(1_000);
+
+            const zeroForOne = WVANAAddress.toLowerCase() < ERC20Token.target.toLowerCase();
+
+            let quote = await dataDexQuoterV2.quoteExactInputSingle.staticCall({
+                tokenIn: WVANAAddress,
+                tokenOut: ERC20Token,
+                fee: FeeAmount.MEDIUM,
+                amountIn: amountIn,
+                sqrtPriceLimitX96: 0,
+            });
+
+            const balanceBefore = await ethers.provider.getBalance(foundation.address);
+            const tokenBalanceBefore = await ERC20Token.balanceOf(foundation.address);
+
+            let tx = await swapHelper.connect(foundation).exactInputSingle({
+                tokenIn: VANA,
+                tokenOut: ERC20Token.target,
+                fee: FeeAmount.MEDIUM,
+                recipient: foundation.address,
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+            }, { value: amountIn });
+            let txReceipt = await getReceipt(tx);
+            (await ERC20Token.balanceOf(foundation.address)).should.be.eq(tokenBalanceBefore + quote.amountOut);
+            (await ethers.provider.getBalance(foundation.address)).should.be.eq(balanceBefore - amountIn - txReceipt.fee);
+
+            const amountMintInVANA = amountIn;
+            const amountMintInToken = await ERC20Token.balanceOf(foundation.address);
+
+            await WVANA.connect(foundation).deposit({ value: amountMintInVANA });
+            (await WVANA.balanceOf(foundation.address)).should.be.eq(amountMintInVANA);
+
+            await WVANA.connect(foundation).approve(positionManager.target, amountMintInVANA);
+            await ERC20Token.connect(foundation).approve(positionManager.target, amountMintInToken);
+
+            const slot0 = await pool.slot0();
+            const currentLiquidity = await pool.liquidity();
+
+            const tickLower = nearestUsableTick(TickMath.MIN_TICK, TICK_SPACINGS[FeeAmount.MEDIUM]);
+            const tickUpper = nearestUsableTick(TickMath.MAX_TICK, TICK_SPACINGS[FeeAmount.MEDIUM]);
+
+            const liquidity = maxLiquidityForAmounts(
+                JSBI.BigInt(slot0.sqrtPriceX96.toString()),
+                TickMath.getSqrtRatioAtTick(tickLower),
+                TickMath.getSqrtRatioAtTick(tickUpper),
+                JSBI.BigInt(amountMintInVANA.toString()),
+                JSBI.BigInt(amountMintInToken.toString()),
+                false
+            );
+
+            // console.log("liquidity", liquidity.toString());
+            // console.log("amountMintInVANA", amountMintInVANA.toString());
+            // console.log("amountMintInToken", amountMintInToken.toString());
+
+            BigInt(liquidity.toString()).should.be.gt(0);
+
+            let mintAmount0: any;
+            let mintAmount1: any;
+            {
+                const pToken0 = new Token(chainId, WVANA.target, 18, "WVANA", "WVANA");
+                const pToken1 = new Token(chainId, ERC20Token.target, Number(await ERC20Token.decimals()), await ERC20Token.symbol(), await ERC20Token.name());
+                const pPool = new Pool(
+                    pToken0,
+                    pToken1,
+                    FeeAmount.MEDIUM,
+                    JSBI.BigInt(slot0.sqrtPriceX96.toString()),
+                    JSBI.BigInt(currentLiquidity.toString()),
+                    Number(slot0.tick),
+                );
+
+                const position = new Position({
+                    pool: pPool,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    liquidity: liquidity,
+                });
+
+                mintAmount0 = position.mintAmounts.amount0;
+                mintAmount1 = position.mintAmounts.amount1;
+            }
+
+            const lpTokenId = 1550;
+            await positionManager
+                .connect(foundation)
+                .mint({
+                    token0: WVANA,
+                    token1: ERC20Token,
+                    fee: FeeAmount.MEDIUM,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    amount0Desired: amountMintInVANA,
+                    amount1Desired: amountMintInToken,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: foundation.address,
+                    deadline: Math.floor(Date.now() / 1000) + 60 * 10,
+                })
+                .should.emit(pool, "Mint")
+                .withArgs(
+                    positionManager.target,
+                    positionManager.target,
+                    tickLower,
+                    tickUpper,
+                    liquidity.toString(),
+                    mintAmount0.toString(),
+                    mintAmount1.toString(),
+                )
+                .also.emit(positionManager, "IncreaseLiquidity")
+                .withArgs(
+                    lpTokenId,
+                    liquidity.toString(),
+                    mintAmount0.toString(),
+                    mintAmount1.toString(),
+                );
+
+            const rewardPercentage = parseEther(0); // 0%
+
+            amountIn = 5646607493091401645215n;
+
+            await network.provider.send("hardhat_setBalance", [
+                foundation.address,
+                toHex(2n * amountIn),
+            ]);
+
+            const dlpTokenBalanceBefore = await ERC20Token.balanceOf(dlp.address);
+
+            quote = await dlpRewardSwap.quoteSplitRewardSwap.staticCall({
+                amountIn: amountIn,
+                lpTokenId: lpTokenId,
+                rewardPercentage: rewardPercentage,
+                maximumSlippagePercentage: SLIPPAGE_TOLERANCE,
+            });
+
+            // console.log(
+            //     "amountIn", amountIn,
+            //     "usedVanaAmount", quote.usedVanaAmount.toString(),
+            //     "tokenRewardAmount", quote.tokenRewardAmount.toString(),
+            //     "spareVana", quote.spareVana.toString(),
+            //     "spareToken", quote.spareToken.toString());
+
+            const rewardAmount = amountIn * rewardPercentage / parseEther(100);
+            const lpAmount = amountIn - rewardAmount;
+            const usedVanaForLp = lpAmount - quote.spareVana;
+            const usedVanaForReward = quote.usedVanaAmount - usedVanaForLp;
+            const unusedVanaForReward = rewardAmount - usedVanaForReward;
+            quote.usedVanaAmount.should.be.eq(usedVanaForLp + usedVanaForReward);
+            amountIn.should.be.eq(quote.usedVanaAmount + quote.spareVana + unusedVanaForReward);
+
+            const foundationVanaBalanceBefore = await ethers.provider.getBalance(foundation.address);
+
+            const treasuryVanaBalanceBefore = await ethers.provider.getBalance(treasury.address);
+            const treasuryTokenBalanceBefore = await ERC20Token.balanceOf(treasury.address);
+
+            const poolVanaBalanceBefore = await WVANA.balanceOf(pool.target);
+            const poolTokenBalanceBefore = await ERC20Token.balanceOf(pool.target);
+
+            tx = await dlpRewardSwap.connect(foundation).splitRewardSwap({
+                lpTokenId: lpTokenId,
+                rewardPercentage: rewardPercentage,
+                maximumSlippagePercentage: SLIPPAGE_TOLERANCE,
+                rewardRecipient: dlp.address,
+                spareRecipient: treasury.address,
+            },
+                { value: amountIn });
+            txReceipt = await getReceipt(tx);
+
+            const foundationVanaBalanceAfter = await ethers.provider.getBalance(foundation.address);
+            foundationVanaBalanceAfter.should.be.eq(foundationVanaBalanceBefore - amountIn + unusedVanaForReward - txReceipt.fee);
+            foundationVanaBalanceAfter.should.be.eq(foundationVanaBalanceBefore - quote.usedVanaAmount - quote.spareVana - txReceipt.fee);
+
+            const poolVanaBalanceAfter = await WVANA.balanceOf(pool.target);
+            poolVanaBalanceAfter.should.be.eq(poolVanaBalanceBefore + amountIn - unusedVanaForReward - quote.spareVana);
+
+            const poolTokenBalanceAfter = await ERC20Token.balanceOf(pool.target);
+            poolTokenBalanceAfter.should.be.eq(poolTokenBalanceBefore - quote.tokenRewardAmount - quote.spareToken);
+
+            const dlpTokenBalanceAfter = await ERC20Token.balanceOf(dlp.address);
+            dlpTokenBalanceAfter.should.be.eq(dlpTokenBalanceBefore + quote.tokenRewardAmount);
+
+            const treasuryVanaBalanceAfter = await ethers.provider.getBalance(treasury.address);
+            treasuryVanaBalanceAfter.should.be.eq(treasuryVanaBalanceBefore + quote.spareVana);
+
+            const treasuryTokenBalanceAfter = await ERC20Token.balanceOf(treasury.address);
+            treasuryTokenBalanceAfter.should.be.eq(treasuryTokenBalanceBefore + quote.spareToken);
+
+            (await ERC20Token.balanceOf(dlpRewardSwap)).should.be.eq(0);
+            (await ethers.provider.getBalance(dlpRewardSwap)).should.be.eq(0);
+        });
+
         it("should splitRewardSwap with existing position lpTokenId (moksha)", async () => {
             const lpTokenId = 86;
             const rewardPercentage = parseEther(50); // 50%
